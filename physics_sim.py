@@ -123,7 +123,7 @@ class PhysicsSim():
         self.linear_accel = self.get_linear_forces(thrusts) / self.mass
 
         position = self.pose[:3] + self.v * self.dt + 0.5 * self.linear_accel * self.dt**2
-        self.v += self.linear_accel * self.dt
+        self.v = self.v + self.linear_accel * self.dt
 
         moments = self.get_moments(thrusts)
 
