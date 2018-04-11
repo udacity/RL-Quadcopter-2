@@ -1,5 +1,4 @@
 from .base_agent import BaseAgent
-from .policy_search import RandomPolicySearch
-from .ddpg_agent import DeepDPG
+from .policy_search import PolicySearch_Agent
+from .ddpg_agent import DeepDPGAgent
 from .ddpg_agent import DeepDPGPlayer
-from .uc_agent import Udacity_DDPG

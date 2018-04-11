@@ -18,9 +18,9 @@ class Actor:
         loss = tf.reduce_mean(-critic)
         tf.losses.add_loss(loss)
 
-        with tf.control_dependencies(tf.get_collection(tf.GraphKeys.UPDATE_OPS)):
-            optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
-            self.optimizer = optimizer.minimize(loss, var_list=tf.trainable_variables(scope_name + '_current'))
+        # with tf.control_dependencies(tf.get_collection(tf.GraphKeys.UPDATE_OPS)):
+        optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
+        self.optimizer = optimizer.minimize(loss, var_list=tf.trainable_variables(scope_name + '_current'))
 
         self.tau = tf.placeholder(tf.float32)
         self.assignments = [tf.assign(t, c * self.tau + (1-self.tau) * t)
@@ -36,32 +36,39 @@ class Actor:
 
     def create_model(self, inputs, task, scope_name, training=False):
         g = 0.001
+        eps = 1
         with tf.variable_scope(scope_name):
             dense = tf.layers.dense(inputs, 64,
                                     activation=tf.nn.relu,
                                     kernel_initializer=tf.contrib.layers.xavier_initializer())
             # dense = tf.layers.dropout(dense, 0.5, training=training)
-            # dense = tf.nn.l2_normalize(dense, epsilon=0.01)
-            # dense = tf.layers.batch_normalization(dense, training=True)
+            # dense = tf.nn.l2_normalize(dense, epsilon=eps)
+            # dense = tf.layers.batch_normalization(dense, training=training)
 
             dense = tf.layers.dense(dense, 64,
                                     activation=tf.nn.relu,
                                     kernel_initializer=tf.contrib.layers.xavier_initializer())
             # dense = tf.layers.dropout(dense, 0.5, training=training)
-            # dense = tf.nn.l2_normalize(dense, epsilon=0.01)
-            # dense = tf.layers.batch_normalization(dense, training=True)
+            # dense = tf.nn.l2_normalize(dense, epsilon=eps)
+            # dense = tf.layers.batch_normalization(dense, training=training)
+
+            dense = tf.layers.dense(dense, 64,
+                                    activation=tf.nn.relu,
+                                    kernel_initializer=tf.contrib.layers.xavier_initializer())
+            # dense = tf.layers.dropout(dense, 0.5, training=training)
+            # dense = tf.nn.l2_normalize(dense, epsilon=eps)
+            # dense = tf.layers.batch_normalization(dense, training=training)
 
             dense = tf.layers.dense(dense, task.num_actions,
-                                    activation=tf.nn.tanh,
+                                    activation=tf.nn.sigmoid,
                                     kernel_initializer=tf.random_uniform_initializer(minval=-g, maxval=g),
                                     bias_initializer=tf.random_uniform_initializer(minval=-g, maxval=g))
 
-            action_min = task.action_space.low[0:task.num_actions]
-            action_max = task.action_space.high[0:task.num_actions]
+            action_min = np.array([task.action_low] * task.num_actions)
+            action_max = np.array([task.action_high] * task.num_actions)
             action_range = action_max - action_min
-            action_zero = action_min + action_range / 2
 
-            result = dense * action_range/2 + action_zero
+            result = dense * action_range + action_min
 
         return result
 

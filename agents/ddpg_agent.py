@@ -1,3 +1,4 @@
+from pathlib import Path
 import numpy as np
 import tensorflow as tf
 
@@ -9,7 +10,7 @@ from .ddpg_critic import Critic
 from .noise import OUNoise, OUNoise2
 
 
-class DeepDPG(BaseAgent):
+class DeepDPGAgent(BaseAgent):
     batch_size = 64
     tau = 0.001
     gamma = 0.99
@@ -31,13 +32,17 @@ class DeepDPG(BaseAgent):
         super().__init__(task)
 
         # Create actor and critic
-        self.critic = Critic(task, learning_rate=DeepDPG.learning_rate * 10)
-        self.actor = Actor(task, self.critic, learning_rate = DeepDPG.learning_rate)
+        self.critic = Critic(task, learning_rate=DeepDPGAgent.learning_rate * 100)
+        self.actor = Actor(task, self.critic, learning_rate = DeepDPGAgent.learning_rate)
 
-        self.noise = OUNoise2(
+        #self.noise = OUNoise2(
+        #    task.num_actions,
+        #    theta=0.15,
+        #    sigma=0.2)
+        self.noise = OUNoise(
             task.num_actions,
             theta=0.15,
-            sigma=0.2)
+            sigma=25)
 
         # Create critic NN
 
@@ -54,46 +59,49 @@ class DeepDPG(BaseAgent):
 
         # writer = tf.summary.FileWriter('graph', self.session.graph)
 
-        self.prev_action = None
         self.prev_state = None
 
-        self.batch_size = batch_size or DeepDPG.batch_size
-        self.tau = DeepDPG.tau
-        self.gamma = DeepDPG.gamma
+        self.batch_size = batch_size or DeepDPGAgent.batch_size
+        self.tau = DeepDPGAgent.tau
+        self.gamma = DeepDPGAgent.gamma
 
         self.best_score = None
         self.episode_score = 0.0
         self.episode_ticks = 0
-        self.reset_episode_vars()
 
         self.episode = 1
 
         self.saver = tf.train.Saver()
 
+        self.load_task_agent()
 
-    def reset_episode_vars(self):
+    def reset_episode(self):
         self.episode_score = 0.0
         self.episode_ticks = 0
+        self.noise.reset()
+        return self.task.reset()
 
+    def act(self, state):
+        action = self.actor.get_action(np.expand_dims(state, axis=0))[0]
 
-    def step(self, state, reward, done):
-        """Process state, reward, done flag, and return an action.
+        noise = self.noise.sample()
+        for i in range(self.task.num_actions):
+            noise[i] = min(self.task.action_high, max(self.task.action_low, noise[i]))
 
-        Params
-        ======
-        - state: current state vector as NumPy array, compatible with task's state space
-        - reward: last reward received
-        - done: whether this episode is complete
+        action += noise
 
-        Returns
-        =======
-        - action: desired action vector as NumPy array, compatible with task's action space
-        """
+        return action
+
+    def act_target(self, state):
+        action = self.actor.get_target_action(np.expand_dims(state, axis=0))[0]
+        return action
+
+    def step(self, action, reward, next_state, done):
         self.episode_ticks += 1
         self.episode_score += reward
 
         if self.prev_state is not None:
-            self.replay_buffer.add([self.prev_state, self.prev_action, reward, state, done])
+            self.replay_buffer.add([self.prev_state, action, reward, next_state, done])
 
         if len(self.replay_buffer) >= self.batch_size:
             batch = self.replay_buffer.sample(self.batch_size)
@@ -110,25 +118,23 @@ class DeepDPG(BaseAgent):
             self.critic.update_target(self.tau)
             self.actor.update_target(self.tau)
 
-        action = self.actor.get_action(np.expand_dims(state, axis=0))[0]
-        # print(action)
-        action += self.noise.sample()
-        self.prev_state = state if not done else None
-        self.prev_action = action if not done else None
-
-        # Output some information at the end of the episode
         if done:
             if self.best_score is not None:
                 self.best_score = max(self.best_score, self.episode_score)
             else:
                 self.best_score = self.episode_score
-            print("Deep DPG episode stats: t = {:4d}, score = {:7.3f} (best = {:7.3f}), noise_scale = {}".format(
-                self.episode_ticks, self.episode_score, self.best_score, 0))# self.noise_scale))  # [debug]
-            self.reset_episode_vars()
-            self.noise.reset()
             self.episode += 1
+            self.save_task_agent()
 
-        return action
+        self.prev_state = next_state if not done else None
+
+    def show_episode_stats(self):
+        print("Deep DPG episode stats: t = {:4d}, score = {:7.3f} (best = {:7.3f}), noise_scale = {}".format(
+            self.episode_ticks, self.episode_score, self.best_score, 0))# self.noise_scale))  # [debug]
+
+    @property
+    def noise_scale(self):
+        return 0
 
     def load(self, path):
         self.saver.restore(self.session, path)
@@ -148,8 +154,8 @@ class DeepDPGPlayer(BaseAgent):
         super().__init__(task)
 
         # Create actor and critic
-        self.critic = Critic(task, learning_rate = DeepDPG.learning_rate * 10)
-        self.actor = Actor(task, self.critic, learning_rate = DeepDPG.learning_rate)
+        self.critic = Critic(task, learning_rate = DeepDPGAgent.learning_rate * 10)
+        self.actor = Actor(task, self.critic, learning_rate = DeepDPGAgent.learning_rate)
 
         self.session = tf.Session()
         self.session.run(tf.global_variables_initializer())
@@ -164,6 +170,7 @@ class DeepDPGPlayer(BaseAgent):
         self.episode_score = 0.0
         self.episode_ticks = 0
         self.reset_episode_vars()
+        self.prev_state = None
 
         self.episode = 1
 
@@ -172,12 +179,16 @@ class DeepDPGPlayer(BaseAgent):
         self.num_actions = task.num_actions
         self.num_states = task.num_states
 
+        self.load_task_agent()
 
     def reset_episode_vars(self):
         self.episode_score = 0.0
         self.episode_ticks = 0
 
-    def step(self, state, reward, done):
+    def act(self, state):
+        return self.actor.get_target_action(np.expand_dims(state, axis=0))[0]
+
+    def step(self, action, reward, next_state, done):
         """Process state, reward, done flag, and return an action.
 
         Params
@@ -193,15 +204,12 @@ class DeepDPGPlayer(BaseAgent):
         self.episode_ticks += 1
         self.episode_score += reward
 
-        for ijk in range(5):
-            action = self.actor.get_target_action(np.expand_dims(state, axis=0))[0]
+        action_str = ', '.join('{:7.3f}'.format(a) for a in action)
+        position_str = ', '.join('{:7.3f}'.format(a) for a in self.prev_state[0:6])
 
-        if self.num_actions == 3:
-            print(' => [{:7.3f}, {:7.3f}, {:7.3f}]'.format(action[0], action[1], action[2]), end='')
-        elif self.num_actions == 1:
-            print(' => [{:7.3f}, {:7.3f}, {:7.3f}]'.format(0.0, 0.0, action[0]), end='')
+        print('[{}] => [{}], R = {:7.3f}'.format(position_str, action_str, reward))
 
-        print(' R = {:7.3f}'.format(reward), end='\n')
+        self.prev_state = next_state
 
         # Output some information at the end of the episode
         if done:
@@ -215,6 +223,16 @@ class DeepDPGPlayer(BaseAgent):
             self.episode += 1
 
         return action
+
+    def reset_episode(self):
+        self.episode_score = 0.0
+        self.episode_ticks = 0
+        self.prev_state = self.task.reset()
+        return self.prev_state
+
+    @property
+    def noise_scale(self):
+        return 0
 
     def load(self, path):
         self.saver.restore(self.session, path)
