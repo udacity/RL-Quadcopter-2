@@ -3,45 +3,49 @@
 import math
 from pathlib import Path
 import numpy as np
-from gym import spaces
-from geometry_msgs.msg import Vector3, Point, Quaternion, Pose, Twist, Wrench
-from .quadrocopter_task import QuadrocopterTask
+from .task import Task
 
-class Takeoff(QuadrocopterTask):
+class Takeoff(Task):
     """Simple task where the goal is to lift off the ground and reach a target height."""
 
-    def __init__(self, num_actions=1):
-        super().__init__(num_actions)
-        print("Takeoff(): observation_space = {}".format(self.observation_space))  # [debug]
-        print("Takeoff(): action_space = {}".format(self.action_space))  # [debug]
+    def __init__(self, target_z=20., start_z=5.):
+        super().__init__(
+            target_pos=np.array([0., 0., target_z]),
+            init_pose=np.array([0., 0., start_z, 0., 0., 0.])
+        )
+        print("Starting takeoff task")
 
         # Task-specific parameters
         self.max_duration = 10.0  # secs
-        self.target_z = 10.0  # target height (z position) to reach for successful takeoff
+        self.target_z = target_z
 
         self.task_name = 'takeoff'
 
-    def reset(self):
-        # Nothing to reset; just return initial condition
-        return Pose(
-                position=Point(0.0, 0.0, np.random.normal(0.5, 0.1)),  # drop off from a slight random height
-                orientation=Quaternion(0.0, 0.0, 0.0, 0.0),
-            ), Twist(
-                linear=Vector3(0.0, 0.0, 0.0),
-                angular=Vector3(0.0, 0.0, 0.0)
-            )
+    def is_task_finished(self):
+        return self.position[2] >= self.target_z
 
-    def calculate_reward(self, timestamp, pose, angular_velocity, linear_acceleration):
-        # Compute reward / penalty and check if this episode is complete
-        done = False
-        reward = -min(abs(self.target_z - pose.position.z), 20.0)  # reward = zero for matching target z, -ve as you go farther, upto -20
-        dist = math.sqrt(pose.position.x * pose.position.x + pose.position.y * pose.position.y)
-        reward -= dist * 2.0
-        if pose.position.z >= self.target_z:  # agent has crossed the target height
-            reward += 50.0 - dist * 5.0  # bonus reward
-            done = True
-        elif timestamp > self.max_duration:  # agent has run out of time
-            reward -= 50.0  # extra penalty
-            done = True
+    def get_reward(self):
+        reward = 0.0
 
-        return reward, done
+        # Compute reward for reaching target height
+        height_reward = min(abs(self.target_z - self.position[2]), 50.0)
+        reward -= height_reward * height_reward
+
+        # Penalize for shifting in horizontal plane
+        # dist_penalty = math.sqrt(self.position[0] * self.position[0] + self.position[1] * self.position[1])
+        # reward -= dist_penalty * 2.0
+
+        # Penalise for rotating
+        # rotate_penalty = np.abs(self.sim.angular_v).sum()
+        # reward -= rotate_penalty * 1.0
+
+        # Orientation reward
+        orientation_penalty = (1 - np.cos(self.orientation)).sum()
+        reward -= orientation_penalty * 1.0
+
+        if self.is_task_finished():  # agent has crossed the target height
+            reward += 50.0 # bonus reward for reaching the target
+        elif self.timeout:  # agent has run out of time
+            reward -= 500.0  # extra penalty for timeout or going out of emulated space
+
+        return reward

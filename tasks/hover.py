@@ -1,56 +1,77 @@
-"""Hover task."""
-
 import math
-from pathlib import Path
 import numpy as np
-from gym import spaces
-from geometry_msgs.msg import Vector3, Point, Quaternion, Pose, Twist, Wrench
-from .quadrocopter_task import QuadrocopterTask
+from .task import Task
 
-class Hover(QuadrocopterTask):
-    """Simple task where the goal is to lift off the ground and reach a target height."""
-
-    def __init__(self, num_actions=1):
-        super().__init__(num_actions)
-        print("Hover(): observation_space = {}".format(self.observation_space))  # [debug]
-        print("Hover(): action_space = {}".format(self.action_space))  # [debug]
+class Hover(Task):
+    """Hover task."""
+    def __init__(self, target_z=150., start_z=100., hover_duration=3.0):
+        super().__init__(
+            target_pos=np.array([0., 0., target_z]),
+            init_pose=np.array([0., 0., start_z, 0., 0., 0.]),
+            runtime=10.0
+        )
 
         # Task-specific parameters
         self.max_duration = 10.0  # secs
-        self.target_z = 10.0  # target height (z position) to reach for successful takeoff
+        self.target_z = target_z
+        self.hover_duration = hover_duration
+
+        # Reward task-specific variables
+        self.last_time = 0.0
+        self.time_hover = 0.0
 
         self.task_name = 'hover'
 
-        self.time_hover = 0
-        self.last_time_stamp = 0.0
+    def is_task_finished(self):
+        return self.time_hover >= self.hover_duration
 
-    def reset(self):
-        self.time_hover = 0
-        self.last_time_stamp = 0.0
-        return Pose(
-                position=Point(0.0, 0.0, np.random.normal(5.0, 1.0)),  # drop off from a slight random height
-                orientation=Quaternion(0.0, 0.0, 0.0, 0.0),
-            ), Twist(
-                linear=Vector3(0.0, 0.0, 0.0),
-                angular=Vector3(0.0, 0.0, 0.0)
-            )
+    def get_reward(self):
+        reward = 0.0
 
-    def calculate_reward(self, timestamp, pose, angular_velocity, linear_acceleration):
-        # Compute reward / penalty and check if this episode is complete
-        done = False
-        reward = -min(abs(self.target_z - pose.position.z), 20.0)  # reward = zero for matching target z, -ve as you go farther, upto -20
-        dist = math.sqrt(pose.position.x * pose.position.x + pose.position.y * pose.position.y)
-        reward -= dist
-        if abs(pose.position.z - self.target_z) < 0.5:
-            self.time_hover += timestamp - self.last_time_stamp
-            reward += 2.0 * self.time_hover
-        if self.time_hover >= 3.0:  # agent has crossed the target height
+        # Compute reward for reaching target height
+        target_distance = abs(self.target_z - self.position[2])
+        height_reward = min(target_distance, 50.0)
+        reward -= 1.0 * height_reward
+
+        # Penalty for getting too low.
+        # Simulator do not have "ground", so task is over when copter gets below zero. Thus getting too low should be punished
+        # too_low_threshold = 3.0
+        # too_low_penalty = math.exp(too_low_threshold - math.pow(self.position[2], 4.0)) if self.position[2] < too_low_threshold else 0
+        # reward -= too_low_penalty
+
+        # Penalty of going too far from the target
+        too_far_threshold = 25.
+        too_far_penalty = target_distance - too_far_threshold if target_distance > too_far_threshold else 0.0
+        too_far_penalty = math.pow(too_far_penalty, 1.1)
+        reward -= too_far_penalty * 1.0
+
+        # Penalize for shifting in horizontal plane
+        # dist_penalty = math.sqrt(self.position[0] * self.position[0] + self.position[1] * self.position[1])
+        # reward -= dist_penalty * 2.0
+
+        # Penalise for rotating
+        # rotate_penalty = np.abs(self.sim.angular_v).sum()
+        # reward -= rotate_penalty * 1.0
+
+        # Orientation reward
+        orientation_penalty = (1 - np.cos(self.orientation)).sum()
+        reward -= orientation_penalty * 1.0
+
+        if abs(self.position[2] - self.target_z) < 0.5:
+            self.time_hover += self.sim.time - self.last_time
+            reward += 5.0 * self.time_hover
+
+        if self.is_task_finished():  # agent stayed around hover position for long enough
             reward += 50.0  # bonus reward
             done = True
-        elif timestamp > self.max_duration:  # agent has run out of time
+        elif self.timeout:  # agent has run out of time
             reward -= 50.0  # extra penalty
             done = True
 
-        self.last_time_stamp = timestamp
+        self.last_time = self.sim.time
 
-        return reward, done
+        return reward
+
+    def reset_vars(self):
+        self.last_time = self.sim.time
+        self.time_hover = 0.0

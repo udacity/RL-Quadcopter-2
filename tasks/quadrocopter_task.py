@@ -5,9 +5,9 @@ from pathlib import Path
 import numpy as np
 from gym import spaces
 from geometry_msgs.msg import Vector3, Point, Quaternion, Pose, Twist, Wrench
-from .base_task import BaseTask
+from .task import Task
 
-class QuadrocopterTask(BaseTask):
+class QuadrocopterTask(Task):
     """Simple task where the goal is to lift off the ground and reach a target height."""
 
     def __init__(self, num_actions=1):
