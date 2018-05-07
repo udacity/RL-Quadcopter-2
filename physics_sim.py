@@ -53,9 +53,9 @@ class PhysicsSim():
 
     def reset(self):
         self.time = 0.0
-        self.pose = np.array([0.0, 0.0, 10.0, 0.0, 0.0, 0.0]) if self.init_pose is None else self.init_pose
-        self.v = np.array([0.0, 0.0, 0.0]) if self.init_velocities is None else self.init_velocities
-        self.angular_v = np.array([0.0, 0.0, 0.0]) if self.init_angle_velocities is None else self.init_angle_velocities
+        self.pose = np.array([0.0, 0.0, 10.0, 0.0, 0.0, 0.0]) if self.init_pose is None else np.copy(self.init_pose)
+        self.v = np.array([0.0, 0.0, 0.0]) if self.init_velocities is None else np.copy(self.init_velocities)
+        self.angular_v = np.array([0.0, 0.0, 0.0]) if self.init_angle_velocities is None else np.copy(self.init_angle_velocities)
         self.linear_accel = np.array([0.0, 0.0, 0.0])
         self.angular_accels = np.array([0.0, 0.0, 0.0])
         self.prop_wind_speed = np.array([0., 0., 0., 0.])
@@ -128,7 +128,7 @@ class PhysicsSim():
         moments = self.get_moments(thrusts)
 
         self.angular_accels = moments / self.moments_of_inertia
-        angles = self.pose[3:] + self.angular_v * self.dt + 0.5 * self.angular_accels * self.angular_accels * self.dt
+        angles = self.pose[3:] + self.angular_v * self.dt + 0.5 * self.angular_accels * self.angular_accels * self.dt ** 2
         angles = (angles + 2 * np.pi) % (2 * np.pi)
         self.angular_v = self.angular_v + self.angular_accels * self.dt
 
