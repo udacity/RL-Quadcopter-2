@@ -2,6 +2,7 @@ from agents.actor import Actor
 from agents.critic import Critic
 
 import numpy as np
+import copy
 
 import random
 from collections import namedtuple, deque
@@ -33,7 +34,6 @@ class ReplayBuffer:
         """Return the current size of internal memory."""
         return len(self.memory)
 
-
 class OUNoise:
     """Ornstein-Uhlenbeck process."""
 
@@ -46,7 +46,7 @@ class OUNoise:
 
     def reset(self):
         """Reset the internal state (= noise) to mean (mu)."""
-        self.state = self.mu
+        self.state = copy.copy(self.mu)
 
     def sample(self):
         """Update internal state and return it as a noise sample."""
@@ -79,17 +79,17 @@ class DDPG():
         # Noise process
         self.exploration_mu = 0
         self.exploration_theta = 0.15
-        self.exploration_sigma = 0.3
+        self.exploration_sigma = 0.2
         self.noise = OUNoise(self.action_size, self.exploration_mu, self.exploration_theta, self.exploration_sigma)
 
         # Replay memory
-        self.buffer_size = 1000000
+        self.buffer_size = 100000
         self.batch_size = 64
         self.memory = ReplayBuffer(self.buffer_size, self.batch_size)
 
         # Algorithm parameters
         self.gamma = 0.99  # discount factor
-        self.tau = 0.001  # for soft update of target parameters
+        self.tau = 0.01  # for soft update of target parameters
 
     def reset_episode(self):
         self.noise.reset()
@@ -109,9 +109,9 @@ class DDPG():
         # Roll over last state and action
         self.last_state = next_state
 
-    def act(self, states):
+    def act(self, state):
         """Returns actions for given state(s) as per current policy."""
-        state = np.reshape(states, [-1, self.state_size])
+        state = np.reshape(state, [-1, self.state_size])
         action = self.actor_local.model.predict(state)[0]
         return list(action + self.noise.sample())  # add some noise for exploration
 
@@ -139,7 +139,7 @@ class DDPG():
 
         # Soft-update target models
         self.soft_update(self.critic_local.model, self.critic_target.model)
-        self.soft_update(self.actor_local.model, self.actor_target.model)
+        self.soft_update(self.actor_local.model, self.actor_target.model)   
 
     def soft_update(self, local_model, target_model):
         """Soft update model parameters."""

@@ -1,4 +1,4 @@
-from keras import layers, models, optimizers
+from keras import layers, models, optimizers, initializers
 from keras import backend as K
 
 class Actor:
@@ -28,16 +28,16 @@ class Actor:
         states = layers.Input(shape=(self.state_size,), name='states')
 
         # Add hidden layers
-        net = layers.Dense(units=400,kernel_regularizer=layers.regularizers.l2(1e-6))(states)
+        net = layers.Dense(units=512,kernel_initializer=initializers.glorot_normal(seed=None))(states)
         net = layers.BatchNormalization()(net)
         net = layers.Activation("relu")(net)
-        net = layers.Dense(units=300,kernel_regularizer=layers.regularizers.l2(1e-6))(net)
+        net = layers.Dense(units=256,kernel_initializer=initializers.glorot_normal(seed=None))(net)
         net = layers.BatchNormalization()(net)
         net = layers.Activation("relu")(net)
 
         # Add final output layer with sigmoid activation
         raw_actions = layers.Dense(units=self.action_size, activation='sigmoid',
-            name='raw_actions',kernel_initializer=layers.initializers.RandomUniform(minval=-0.003, maxval=0.003))(net)
+            name='raw_actions',kernel_initializer=initializers.glorot_normal(seed=None))(net)
 
         # Scale [0, 1] output for each action dimension to proper range
         actions = layers.Lambda(lambda x: (x * self.action_range) + self.action_low,

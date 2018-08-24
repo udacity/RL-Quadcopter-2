@@ -30,7 +30,8 @@ class Task():
 
     def get_reward(self):
         """Uses current pose of sim to return reward."""
-        reward = np.tanh(1 - 0.003*(abs(self.sim.pose[:3] - self.target_pos))).sum()
+        reward = abs(self.sim.pose[2] - self.target_pos[2])
+#         reward = np.tanh(1 - 0.003*(abs(self.sim.pose[:3] - self.target_pos))).sum()
         return reward
 
 
@@ -42,6 +43,10 @@ class Task():
             done = self.sim.next_timestep(rotor_speeds) # update the sim pose and velocities
             reward += self.get_reward()
             pose_all.append(self.sim.pose)
+            
+            if self.sim.pose[2] >= self.target_pos[2]:  # agent has crossed the target height, give a bonus reward
+                done = True
+            
             if done :
                 reward += 10
         next_state = np.concatenate(pose_all)
