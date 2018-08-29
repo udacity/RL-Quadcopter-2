@@ -24,16 +24,6 @@ class Critic:
         # Define input layers
         states = layers.Input(shape=(self.state_size,), name='states')
         actions = layers.Input(shape=(self.action_size,), name='actions')
-        
-        # Add hidden layer(s) for state pathway
-#         net_states = layers.Dense(units=400,kernel_regularizer=layers.regularizers.l2(1e-6))(states)
-#         net_states = layers.BatchNormalization()(net_states)
-#         net_states = layers.Activation("relu")(net_states)
-
-#         net_states = layers.Dense(units=300, kernel_regularizer=layers.regularizers.l2(1e-6))(net_states)
-
-#         # Add hidden layer(s) for action pathway
-#         net_actions = layers.Dense(units=300,kernel_regularizer=layers.regularizers.l2(1e-6))(actions)
 
         # Add hidden layer(s) for state pathway
         net_states = layers.Dense(units=512,kernel_initializer=initializers.glorot_normal(seed=None))(states)
@@ -53,7 +43,6 @@ class Critic:
 
         # Add final output layer to prduce action values (Q values)
         Q_values = layers.Dense(units=1, name='q_values', kernel_initializer=initializers.glorot_normal(seed=None))(net)
-#         Q_values = layers.Dense(units=1, name='q_values',kernel_initializer=layers.initializers.RandomUniform(minval=-0.003, maxval=0.003))(net)
 
          # Create Keras model
         self.model = models.Model(inputs=[states, actions], outputs=Q_values)
