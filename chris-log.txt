@@ -1,0 +1,7 @@
+1. Primeiro fiz os testes com uma tarefa ultra burra, pra checar se o modelo realmente estava aprendendo. Setei a posição inicial para 0 e o target para 0 também.funcionou muito bem, ele prendeu rápido.
+
+A Reward era a padrão fornecida pelo projeto, que eu deixei comentada no arquivo task.py
+
+2. Em seguida, experimentei a tarefa de ele decolar, setei y para 10
+
+3. Testar fazer o agente ir até z=10
