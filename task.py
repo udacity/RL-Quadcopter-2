@@ -1,5 +1,6 @@
 import numpy as np
 from physics_sim import PhysicsSim
+import sys
 
 class Task():
     """Task (environment) that defines the goal and provides feedback to the agent."""
@@ -26,9 +27,21 @@ class Task():
         # Goal
         self.target_pos = target_pos if target_pos is not None else np.array([0., 0., 10.]) 
 
+    def sigmoid(self,x):
+        return 1 / (1 + np.exp(-x))
+        
     def get_reward(self):
         """Uses current pose of sim to return reward."""
+        # simple reward
         reward = 1.-.3*(abs(self.sim.pose[:3] - self.target_pos)).sum()
+        
+        # sigmoid reward
+        #sig_reward = 1 - self.sigmoid(sum(abs(self.sim.pose[:3] - np.float32(self.target_pos))) * .3)
+        #print(sig_reward)
+        
+        # tanh reward
+        #tanh_reward = 1 - (np.tanh((abs(self.sim.pose[:3] - self.target_pos))).sum() * 0.3)
+     
         return reward
 
     def step(self, rotor_speeds):
