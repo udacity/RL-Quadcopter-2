@@ -17,7 +17,7 @@ class Task():
         """
         # Simulation
         self.sim = PhysicsSim(init_pose, init_velocities, init_angle_velocities, runtime) 
-        self.action_repeat = 3
+        self.action_repeat = 2
 
         self.state_size = self.action_repeat * 6
         self.action_low = 0
@@ -37,17 +37,23 @@ class Task():
         
         # sigmoid reward
         #sig_reward = 1 - self.sigmoid(sum(abs(self.sim.pose[:3] - np.float32(self.target_pos))) * .3)
-        #print(sig_reward)
         
-        # tanh reward
-        #tanh_reward = 1 - (np.tanh((abs(self.sim.pose[:3] - self.target_pos))).sum() * 0.3)
-        
-        reward_x = np.tanh(1 - 0.03*(abs(self.sim.pose[0] - self.target_pos[0])))
-        reward_y = np.tanh(1 - 0.03*(abs(self.sim.pose[1] - self.target_pos[1])))
-        reward_z = np.tanh(1 - 0.03*(abs(self.sim.pose[2] - self.target_pos[2])))
+        reward_x = -min(abs(self.target_pos[0] - self.sim.pose[0]), 20.0)
+        reward_y = -min(abs(self.target_pos[1] - self.sim.pose[1]), 20.0)
+        reward_z = -min(abs(self.target_pos[2] - self.sim.pose[2]), 20.0)
+     
+        angular_stationary_score = (10.-.3*np.linalg.norm(self.sim.angular_v)**2)
+     
        
-        reward = reward_x + reward_y + reward_z
-    
+        reward = reward_x + reward_y + (reward_z * 1.5) + (angular_stationary_score / 10)
+        #reward = reward_z + (angular_stationary_score / 10) + self.sim.v[2]
+        
+        
+        if(self.sim.v[2]> .3):
+            reward += 1
+        
+        if(self.sim.pose[2] >= self.target_pos[2]):
+            reward += 10
     
         return reward
 
