@@ -7,3 +7,5 @@ A Reward era a padrão fornecida pelo projeto, que eu deixei comentada no arquiv
 2. Em seguida, mudei a meta para z=100, é hora de decolar BB :smirk: .
 
 3. Modelei a recompensa como penalidade mas chamei de reward (:smirk:), na qual a penalidade é maior conforme a distancia do agente do target. A penalidade é maior ainda para o eixo Z, da altura. Além disso adicionei um score de estabilidade (que também é uma penalidade >:), proporcional à velocidade angular do agente. Adicionei um bonus caso a velocidade do agente no eixo Z seja maior que 0.3. Por último, adicionei uma recompensa de 10 caso o agente chegasse ou passasse o target no eixo Z.
+
+4. essa estratégia funcionou, mas não todas as vezes. Aumentei a recompensa para 1000, mas como a recompensa so seria recebida caso o agente atingisse ou passasse do target, decidi dar uma recompensa caso ele se aproximasse do target também. conforme o drone reduz a diferença entre a distancia inicial do target da distancia atual, tambem recompensei.
